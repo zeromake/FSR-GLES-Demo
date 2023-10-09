@@ -1,13 +1,16 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <iostream>
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include <imgui/imgui.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
+#include <imgui/misc/freetype/imgui_freetype.h>
+#include <imgui/misc/fonts/DroidSans.h>
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <GLES3/gl32.h>
 
 #include "image_utils.h"
 
@@ -119,6 +122,72 @@ static void on_gl_error(GLenum source, GLenum type, GLuint id, GLenum severity,
     printf("-> %s\n", message);
 }
 
+
+void LoadFonts(float scale)
+{
+    static const ImWchar rangesBasic[] = {
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x03BC, 0x03BC, // micro
+        0x03C3, 0x03C3, // small sigma
+        0x2013, 0x2013, // en dash
+        0x2264, 0x2264, // less-than or equal to
+        0,
+    };
+    ImGuiIO& io = ImGui::GetIO();
+    ImFontConfig configBasic;
+    configBasic.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_LightHinting;
+    // configBasic.SizePixels = round(15.0f * scale);
+    io.Fonts->Clear();
+    // io.Fonts->AddFontDefault(&configBasic);
+    io.Fonts->AddFontFromMemoryCompressedTTF(
+        DroidSans_compressed_data,
+        DroidSans_compressed_size,
+        round( 15.0f * scale ),
+        &configBasic,
+        rangesBasic
+    );
+}
+
+static void SetupDPIScale(float scale)
+{
+    LoadFonts(scale);
+#ifdef __APPLE__
+    // No need to upscale the style on macOS, but we need to downscale the fonts.
+    ImGuiIO& io = ImGui::GetIO();
+    io.FontGlobalScale = 1.0f / dpiScale;
+    scale = 1.0f;
+#endif
+
+    auto& style = ImGui::GetStyle();
+    style = ImGuiStyle();
+    ImGui::StyleColorsDark();
+    style.WindowBorderSize = 1.f * scale;
+    style.FrameBorderSize = 1.f * scale;
+    style.FrameRounding = 5.f;
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(1, 1, 1, 0.03f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.45f);
+    style.ScaleAllSizes(scale);
+}
+
+static float GetDpiScale(GLFWwindow* window)
+{
+#ifdef __EMSCRIPTEN__
+    return EM_ASM_DOUBLE( { return window.devicePixelRatio; } );
+#elif GLFW_VERSION_MAJOR > 3 || ( GLFW_VERSION_MAJOR == 3 && GLFW_VERSION_MINOR >= 3 )
+    auto monitor = glfwGetWindowMonitor(window );
+    if( !monitor ) monitor = glfwGetPrimaryMonitor();
+    if( monitor )
+    {
+        float x, y;
+        glfwGetMonitorContentScale( monitor, &x, &y );
+        return x;
+    }
+#endif
+    return 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         printf("Usage: %s <image>\n", argv[0]);
@@ -133,21 +202,26 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const char* glsl_version = "#version 300 es";
+    const char* glsl_version = "#version " GLSL_VERION;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+    // glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+    // glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, 1);
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1024, 600, "GLES FSR", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1600, 1200, "GLES FSR", NULL, NULL);
     if (window == NULL) {
         return 1;
     }
 
     glfwMakeContextCurrent(window);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+        return -1;
+    }
+
+    // glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(on_gl_error, NULL);
 
     glfwSwapInterval(1);
@@ -167,7 +241,7 @@ int main(int argc, char** argv) {
     bool ret = LoadTextureFromFile(input_image, &inputTexture, &fsrData.input.width, &fsrData.input.height);
     IM_ASSERT(ret);
 
-    fsrData.output = { fsrData.input.width * resMultiplier, fsrData.input.height * resMultiplier };
+    fsrData.output = { (uint32_t)(fsrData.input.width * resMultiplier), (uint32_t)(fsrData.input.height * resMultiplier) };
 
     prepareFSR(&fsrData, rcasAtt);
 
@@ -194,7 +268,9 @@ int main(int argc, char** argv) {
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
+    float dpiScale = GetDpiScale(window);
+    ImGuiIO& io = ImGui::GetIO();(void)io;
+    SetupDPIScale(dpiScale);
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
@@ -229,8 +305,7 @@ int main(int argc, char** argv) {
 
             if (changed) {
                 Extent oldOutput = fsrData.output;
-
-                fsrData.output = { fsrData.input.width * resMultiplier, fsrData.input.height * resMultiplier };
+                fsrData.output = { (uint32_t)(fsrData.input.width * resMultiplier), (uint32_t)(fsrData.input.height * resMultiplier) };
 
                 if (oldOutput.width != fsrData.output.width) {
                     glDeleteTextures(1, &outputImage);
@@ -268,22 +343,23 @@ int main(int argc, char** argv) {
             ImGui::End();
         }
 
-        ImVec2 displaySize = ImVec2(fsrData.output.width * zoom, fsrData.output.height * zoom);
+        ImVec2 inputDisplaySize = ImVec2(fsrData.input.width * zoom, fsrData.input.height * zoom);
+        ImVec2 outputDisplaySize = ImVec2(fsrData.output.width * zoom, fsrData.output.height * zoom);
         ImVec2 viewPosStart = ImVec2(moveX, moveX);
         ImVec2 viewPosEnd = ImVec2(moveY, moveY);
 
-        ImGui::SetNextWindowPos(ImVec2(20, 150), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10, 250), ImGuiCond_FirstUseEver);
         ImGui::Begin("INPUT Image");
         ImGui::Text("pointer = %p", inputTexture);
         ImGui::Text("size = %d x %d", fsrData.input.width, fsrData.input.height);
-        ImGui::Image((void*)(intptr_t)inputTexture, displaySize, viewPosStart, viewPosEnd);
+        ImGui::Image((void*)(intptr_t)inputTexture, inputDisplaySize, viewPosStart, viewPosEnd);
         ImGui::End();
 
-        ImGui::SetNextWindowPos(ImVec2(40, 200), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(400, 10), ImGuiCond_FirstUseEver);
         ImGui::Begin("OUTPUT Image");
         ImGui::Text("pointer = %p", outputImage);
         ImGui::Text("size = %d x %d", fsrData.output.width, fsrData.output.height);
-        ImGui::Image((void*)(intptr_t)outputImage, displaySize, viewPosStart, viewPosEnd);
+        ImGui::Image((void*)(intptr_t)outputImage, outputDisplaySize, viewPosStart, viewPosEnd);
         ImGui::End();
 
         // Render ImGui

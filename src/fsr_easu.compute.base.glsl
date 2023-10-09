@@ -40,7 +40,7 @@ layout(binding=0) uniform const_buffer
 #if SAMPLE_SLOW_FALLBACK
     // GL: removed sampler
     layout(binding=1) uniform sampler2D InputTexture;
-    layout(binding=2,rgba32f) uniform highp writeonly image2D OutputTexture;
+    layout(binding=2,rgba32f) uniform highp image2D OutputTexture;
 
 
     //layout(binding=1) uniform texture2D InputTexture;

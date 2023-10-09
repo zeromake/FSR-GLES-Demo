@@ -1,5 +1,6 @@
 
-#include <GLES3/gl32.h>
+#include <GLFW/glfw3.h>
+#include <glad/glad.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -123,6 +124,7 @@ static uint32_t compileProgram(const std::string& source) {
             char info[512];
             glGetShaderInfoLog(compute_shader, 512, NULL, info);
             printf("Compute shader error:\n%s\n", info);
+            // printf("Compute shader code:\n%s\n", src);
             return -3;
         }
     }
@@ -188,11 +190,13 @@ uint32_t createFSRComputeProgramEAUS(const std::string& baseDir) {
         baseDir + "fsr_easu.compute.base.glsl"
     };
     std::vector<std::string> header = {
-        "#version 320 es",
-        //"#extension GL_KHR_vulkan_glsl : enable",
-        //"#extension GL_ARB_separate_shader_objects : enable",
-        //"#extension GL_ARB_shading_language_420pack : enable",
-        //"#extension GL_GOOGLE_include_directive : enable",
+        "#version " GLSL_VERION,
+        "#extension GL_ARB_compute_shader : enable",
+        "#extension GL_ARB_gpu_shader5 : enable",
+        "#extension GL_ARB_shader_image_load_store : enable",
+        "#extension GL_EXT_shader_image_load_store : enable",
+        "#extension GL_ARB_shading_language_420pack : enable",
+        "#extension GL_ARB_shading_language_packing : enable",
     };
 
     std::string shader = buildShader(header, files, defines);
@@ -218,11 +222,13 @@ uint32_t createFSRComputeProgramRCAS(const std::string& baseDir) {
         baseDir + "fsr_easu.compute.base.glsl"
     };
     std::vector<std::string> header = {
-        "#version 320 es",
-        //"#extension GL_KHR_vulkan_glsl : enable",
-        //"#extension GL_ARB_separate_shader_objects : enable",
-        //"#extension GL_ARB_shading_language_420pack : enable",
-        //"#extension GL_GOOGLE_include_directive : enable",
+        "#version " GLSL_VERION,
+        "#extension GL_ARB_compute_shader : enable",
+        "#extension GL_ARB_gpu_shader5 : enable",
+        "#extension GL_ARB_shader_image_load_store : enable",
+        "#extension GL_EXT_shader_image_load_store : enable",
+        "#extension GL_ARB_shading_language_420pack : enable",
+        "#extension GL_ARB_shading_language_packing : enable",
     };
 
     std::string shader = buildShader(header, files, defines);
@@ -248,11 +254,13 @@ uint32_t createBilinearComputeProgram(const std::string& baseDir) {
         baseDir + "fsr_easu.compute.base.glsl"
     };
     std::vector<std::string> header = {
-        "#version 320 es",
-        //"#extension GL_KHR_vulkan_glsl : enable",
-        //"#extension GL_ARB_separate_shader_objects : enable",
-        //"#extension GL_ARB_shading_language_420pack : enable",
-        //"#extension GL_GOOGLE_include_directive : enable",
+        "#version " GLSL_VERION,
+        "#extension GL_ARB_compute_shader : enable",
+        "#extension GL_ARB_gpu_shader5 : enable",
+        "#extension GL_ARB_shader_image_load_store : enable",
+        "#extension GL_EXT_shader_image_load_store : enable",
+        "#extension GL_ARB_shading_language_420pack : enable",
+        "#extension GL_ARB_shading_language_packing : enable",
     };
 
     std::string shader = buildShader(header, files, defines);
